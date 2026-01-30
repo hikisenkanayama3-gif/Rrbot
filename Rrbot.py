@@ -6,8 +6,8 @@ import json
 import os
 
 # --- 設定エリア ---
-# 24時間稼働させる場合は、TOKENを直接書かずにサーバーの設定（環境変数）に入れるのが安全です
-TOKEN = os.environ.get('DISCORD_TOKEN', 'あなたのトークンをここに貼り付け')
+# Koyebの環境変数「DISCORD_TOKEN」にトークンを入れてください
+TOKEN = os.environ.get('DISCORD_TOKEN')
 CONFIG_FILE = 'config.json'
 
 intents = discord.Intents.default()
@@ -76,6 +76,7 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 async def index():
+    # Koyebのヘルスチェック（/へのアクセス）に対してダッシュボードを返しつつ、正常であることを示す
     return await render_template_string(HTML_TEMPLATE, **config)
 
 @app.route('/update', methods=['POST'])
@@ -98,42 +99,10 @@ async def on_raw_reaction_add(payload):
     if payload.user_id == bot.user.id: return
     if payload.message_id == config["message_id"] and str(payload.emoji) == config["emoji"]:
         guild = bot.get_guild(payload.guild_id)
+        if not guild: return
         role = guild.get_role(config["role_id"])
         member = payload.member or await guild.fetch_member(payload.user_id)
         if role and member:
             try:
                 await member.add_roles(role)
-                print(f"✨ {member.display_name} にロールを付与しました")
-            except Exception as e:
-                print(f"❌ 付与失敗: {e}")
-
-# --- ロール削除 (リアクション除去) ---
-@bot.event
-async def on_raw_reaction_remove(payload):
-    if payload.user_id == bot.user.id: return
-    if payload.message_id == config["message_id"] and str(payload.emoji) == config["emoji"]:
-        guild = bot.get_guild(payload.guild_id)
-        role = guild.get_role(config["role_id"])
-        try:
-            member = await guild.fetch_member(payload.user_id)
-            if role and member:
-                await member.remove_roles(role)
-                print(f"🗑️ {member.display_name} からロールを削除しました")
-        except Exception as e:
-            print(f"❌ 削除失敗: {e}")
-
-# --- 24時間稼働のための実行設定 ---
-async def main():
-    # サーバー側が指定するポート番号を取得（デフォルト5000）
-    port = int(os.environ.get("PORT", 5000))
-    
-    await asyncio.gather(
-        bot.start(TOKEN),
-        app.run_task(host='0.0.0.0', port=port)
-    )
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
+                print(f"✨ {member.display_
