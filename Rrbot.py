@@ -6,7 +6,6 @@ import json
 import os
 
 # --- 設定エリア ---
-# Koyebの環境変数「DISCORD_TOKEN」にトークンを入れてください
 TOKEN = os.environ.get('DISCORD_TOKEN')
 CONFIG_FILE = 'config.json'
 
@@ -48,7 +47,6 @@ HTML_TEMPLATE = """
         button { background: #5865F2; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; }
         button:hover { background: #4752c4; }
         label { font-weight: bold; font-size: 14px; }
-        .hint { font-size: 12px; color: #666; margin-top: 15px; background: #eee; padding: 10px; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -63,12 +61,6 @@ HTML_TEMPLATE = """
             <input type="text" name="emoji" value="{{ emoji }}" required>
             <button type="submit">設定を保存して反映</button>
         </form>
-        <div class="hint">
-            <strong>使い方:</strong><br>
-            1. IDを保存する<br>
-            2. 対象のメッセージに自分で1回リアクションを付ける<br>
-            3. これで付け外しが可能になります！
-        </div>
     </div>
 </body>
 </html>
@@ -76,7 +68,6 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 async def index():
-    # Koyebのヘルスチェック（/へのアクセス）に対してダッシュボードを返しつつ、正常であることを示す
     return await render_template_string(HTML_TEMPLATE, **config)
 
 @app.route('/update', methods=['POST'])
@@ -86,14 +77,12 @@ async def update():
     config["role_id"] = int(form.get("role_id", 0))
     config["emoji"] = form.get("emoji", "✅")
     save_config(config)
-    return "<h2>設定を更新しました！</h2><p>Botが動作を開始します。</p><a href='/'>戻る</a>"
+    return "<h2>更新完了</h2><a href='/'>戻る</a>"
 
 @bot.event
 async def on_ready():
     print(f'✅ Bot起動成功: {bot.user.name}')
-    print(f'--- 稼働中 ---')
 
-# --- ロール付与 (リアクション追加) ---
 @bot.event
 async def on_raw_reaction_add(payload):
     if payload.user_id == bot.user.id: return
@@ -105,4 +94,34 @@ async def on_raw_reaction_add(payload):
         if role and member:
             try:
                 await member.add_roles(role)
-                print(f"✨ {member.display_
+                print(f"✨ {member.display_name} にロールを付与しました")
+            except Exception as e:
+                print(f"❌ 失敗: {e}")
+
+@bot.event
+async def on_raw_reaction_remove(payload):
+    if payload.user_id == bot.user.id: return
+    if payload.message_id == config["message_id"] and str(payload.emoji) == config["emoji"]:
+        guild = bot.get_guild(payload.guild_id)
+        if not guild: return
+        role = guild.get_role(config["role_id"])
+        try:
+            member = await guild.fetch_member(payload.user_id)
+            if role and member:
+                await member.remove_roles(role)
+                print(f"🗑️ {member.display_name} からロールを削除しました")
+        except Exception as e:
+            print(f"❌ 失敗: {e}")
+
+async def main():
+    port = int(os.environ.get("PORT", 8000))
+    if not TOKEN:
+        print("TOKENがありません")
+        return
+    await asyncio.gather(
+        bot.start(TOKEN),
+        app.run_task(host='0.0.0.0', port=port)
+    )
+
+if __name__ == "__main__":
+    asyncio.run(main())
